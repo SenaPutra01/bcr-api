@@ -427,23 +427,33 @@ describe("CarController", () => {
     test("it should respond with 422 as a status if car has already rented", async () => {
       const mockCar = new Car({
         id: 1,
-        name: "Bugatti",
-        price: 44.4,
-        size: "Large",
-        image: "bugatti.jpg",
-        isCurrentlyRented: false,
+        name: "Avanza",
+        price: "10000",
+        size: "small",
+        image: "test.jpg",
+        isCurrentlyRented: true,
       });
+      const mockCarModel = {
+        findByPk: jest.fn().mockReturnValue(mockCar),
+      };
+
       const mockUserCar = new UserCar({
         userId: 1,
         carId: 1,
         rentStartedAt: new Date(),
         rentEndedAt: new Date(),
       });
-      const mockRes = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn().mockReturnThis(),
+      const mockUserCarModel = {
+        findOne: jest.fn().mockReturnValue(mockUserCar),
       };
-      const mockReq = {
+
+      const carController = new CarController({
+        carModel: mockCarModel,
+        userCarModel: mockUserCarModel,
+        dayjs,
+      });
+
+      const req = {
         body: {
           rentStartedAt: new Date(),
           rentEndedAt: new Date(),
@@ -452,34 +462,37 @@ describe("CarController", () => {
           id: 1,
         },
       };
-      
-      const mockCarModel = { findByPk: jest.fn().mockReturnValue(mockCar) };
-      const mockUserCarModel = { findOne: jest.fn().mockReturnValue(mockUserCar) };
-      const mockNext = jest.fn();
-      
-      const carController = new CarController({
-        carModel: mockCarModel,
-        userCarModel: mockUserCarModel,
-        dayjs,
-      });
-      
-      await carController.handleRentCar(mockReq, mockRes, mockNext);
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn().mockReturnThis(),
+      };
+      const next = jest.fn();
+
+      await carController.handleRentCar(req, res, next);
+
       const err = new CarAlreadyRentedError(mockCar);
-      
-      expect(mockCarModel.findByPk).toHaveBeenCalledWith(1);
+
+      expect(mockCarModel.findByPk).toHaveBeenCalledWith(req.params.id);
       expect(mockUserCarModel.findOne).toHaveBeenCalledWith({
         where: {
           carId: mockCar.id,
           rentStartedAt: {
-            [Op.gte]: mockReq.body.rentStartedAt,
+            [Op.gte]: req.body.rentStartedAt,
           },
           rentEndedAt: {
-            [Op.lte]: mockReq.body.rentEndedAt,
+            [Op.lte]: req.body.rentEndedAt,
           },
         },
       });
-      expect(mockRes.status).toHaveBeenCalledWith(422);
-      expect(mockRes.json).toHaveBeenCalledWith(err);
+      expect(res.status).toHaveBeenCalledWith(422);
+      expect(res.json).toHaveBeenCalledWith({
+        error: {
+          name: err.name,
+          message: err.message,
+          details: err.details,
+        },
+      });
+
     });
   });
 
